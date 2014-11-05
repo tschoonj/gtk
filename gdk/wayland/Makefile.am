@@ -23,7 +23,9 @@ BUILT_SOURCES = 				\
 	xdg-shell-client-protocol.h		\
 	xdg-shell-protocol.c			\
 	gtk-shell-client-protocol.h		\
-	gtk-shell-protocol.c
+	gtk-shell-protocol.c			\
+	wayland-tablet-client-protocol.h	\
+	wayland-tablet-protocol.c
 
 nodist_libgdk_wayland_la_SOURCES =		\
 	$(BUILT_SOURCES)
@@ -71,6 +73,7 @@ libgdkwaylandinclude_HEADERS = 			\
 
 EXTRA_DIST += 					\
 	protocol/xdg-shell.xml			\
-	protocol/gtk-shell.xml
+	protocol/gtk-shell.xml			\
+	protocol/wayland-tablet.xml
 
 -include $(top_srcdir)/git.mk
