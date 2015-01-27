@@ -88,7 +88,8 @@ enum {
   PROP_HAS_CURSOR,
   PROP_N_AXES,
   PROP_VENDOR_ID,
-  PROP_PRODUCT_ID
+  PROP_PRODUCT_ID,
+  PROP_AXES
 };
 
 
@@ -268,6 +269,20 @@ gdk_device_class_init (GdkDeviceClass *klass)
                                                         NULL,
                                                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                                                         G_PARAM_STATIC_STRINGS));
+  /**
+   * GdkDevice:axes:
+   *
+   * The axes currently available for this device.
+   *
+   * Since: 3.16
+   */
+  g_object_class_install_property (object_class,
+                                   PROP_AXES,
+                                   g_param_spec_flags ("axes",
+                                                       P_("Axes"),
+                                                       P_("Axes"),
+                                                       GDK_TYPE_AXIS_FLAGS, 0,
+                                                       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GdkDevice::changed:
@@ -418,6 +433,9 @@ gdk_device_get_property (GObject    *object,
       break;
     case PROP_PRODUCT_ID:
       g_value_set_string (value, device->product_id);
+      break;
+    case PROP_AXES:
+      g_value_set_flags (value, device->axis_flags);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1453,7 +1471,10 @@ _gdk_device_reset_axes (GdkDevice *device)
   for (i = device->axes->len - 1; i >= 0; i--)
     g_array_remove_index (device->axes, i);
 
+  device->axis_flags = 0;
+
   g_object_notify (G_OBJECT (device), "n-axes");
+  g_object_notify (G_OBJECT (device), "axes");
 }
 
 guint
@@ -1494,7 +1515,10 @@ _gdk_device_add_axis (GdkDevice   *device,
   device->axes = g_array_append_val (device->axes, axis_info);
   pos = device->axes->len - 1;
 
+  device->axis_flags |= (1 << use);
+
   g_object_notify (G_OBJECT (device), "n-axes");
+  g_object_notify (G_OBJECT (device), "axes");
 
   return pos;
 }
@@ -1868,4 +1892,20 @@ gdk_device_get_product_id (GdkDevice *device)
   g_return_val_if_fail (gdk_device_get_device_type (device) != GDK_DEVICE_TYPE_MASTER, NULL);
 
   return device->product_id;
+}
+
+/**
+ * gdk_device_get_axes:
+ * @device: a #GdkDevice
+ *
+ * Returns the axes currently available on the device.
+ *
+ * Since: 3.16
+ **/
+GdkAxisFlags
+gdk_device_get_axes (GdkDevice *device)
+{
+  g_return_val_if_fail (GDK_IS_DEVICE (device), 0);
+
+  return device->axis_flags;
 }
