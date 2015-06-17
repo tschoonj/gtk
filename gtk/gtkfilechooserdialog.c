@@ -34,6 +34,11 @@
 #include "gtkstylecontext.h"
 #include "gtkheaderbar.h"
 #include "gtkdialogprivate.h"
+#include "gtkpathbar.h"
+#include "gtkfilechooserentry.h"
+#include "gtkfilechooserwidgetprivate.h"
+#include "gtkstack.h"
+#include "gtklabel.h"
 
 #include <stdarg.h>
 
@@ -206,6 +211,8 @@ struct _GtkFileChooserDialogPrivate
   /* for use with GtkFileChooserEmbed */
   gboolean response_requested;
   gboolean search_setup;
+
+  gboolean path_bar_setup;
 };
 
 static void     gtk_file_chooser_dialog_set_property (GObject               *object,
@@ -523,6 +530,39 @@ setup_search (GtkFileChooserDialog *dialog)
 }
 
 static void
+setup_path_bar (GtkFileChooserDialog *dialog)
+{
+  gboolean use_header;
+
+  if (dialog->priv->path_bar_setup)
+    return;
+
+  dialog->priv->path_bar_setup = TRUE;
+
+  g_object_get (dialog, "use-header-bar", &use_header, NULL);
+  if (use_header)
+    {
+      GtkWidget *stack;
+      GtkWidget *path_bar;
+      GtkWidget *entry;
+      GtkWidget *header;
+
+      stack = gtk_stack_new ();
+      path_bar = (GtkWidget *) g_object_new (GTK_TYPE_PATH_BAR, NULL);
+
+      gtk_stack_add_named (GTK_STACK (stack), path_bar, "pathbar");
+
+      gtk_widget_show_all (stack);
+
+      header = gtk_dialog_get_header_bar (GTK_DIALOG (dialog));
+      gtk_header_bar_set_custom_title (GTK_HEADER_BAR (header), gtk_label_new (""));
+      gtk_header_bar_pack_start (GTK_HEADER_BAR (header), stack);
+
+      gtk_file_chooser_widget_set_external_controls (GTK_FILE_CHOOSER_WIDGET (dialog->priv->widget), path_bar);
+    }
+}
+
+static void
 ensure_default_response (GtkFileChooserDialog *dialog)
 {
   GtkWidget *widget;
@@ -540,6 +580,7 @@ gtk_file_chooser_dialog_map (GtkWidget *widget)
   GtkFileChooserDialogPrivate *priv = dialog->priv;
 
   setup_search (dialog);
+  setup_path_bar (dialog);
   ensure_default_response (dialog);
 
   _gtk_file_chooser_embed_initial_focus (GTK_FILE_CHOOSER_EMBED (priv->widget));
