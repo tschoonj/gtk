@@ -90,8 +90,27 @@
                               <object class="GtkBox" id="location_entry_box">
                                 <property name="visible">True</property>
                                 <property name="no-show-all">True</property>
-                                <property name="spacing">6</property>
                                 <property name="border_width">6</property>
+                                <style>
+                                  <class name="linked"/>
+                                </style>
+                                <child>
+                                  <object class="GtkButton" id="location_entry_close">
+                                    <property name="visible">True</property>
+                                    <property name="focus-on-click">False</property>
+                                    <signal name="clicked" handler="location_entry_close_clicked" swapped="yes"/>
+                                    <child>
+                                      <object class="GtkImage">
+                                        <property name="visible">True</property>
+                                        <property name="icon-name">window-close-symbolic</property>
+                                        <property name="icon-size">1</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                  <packing>
+                                    <property name="pack-type">end</property>
+                                  </packing>
+                                </child>
                               </object>
                               <packing>
                                 <property name="name">location</property>

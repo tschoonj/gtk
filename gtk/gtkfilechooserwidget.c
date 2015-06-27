@@ -2223,6 +2223,12 @@ location_mode_set (GtkFileChooserWidget *impl,
   g_object_notify (G_OBJECT (impl), "subtitle");
 }
 
+static void
+location_entry_close_clicked (GtkFileChooserWidget *impl)
+{
+  location_mode_set (impl, LOCATION_MODE_PATH_BAR);
+}
+
 /* Callback used when the places sidebar needs us to enter a location */
 static void
 places_sidebar_show_enter_location_cb (GtkPlacesSidebar *sidebar,
@@ -7581,6 +7587,7 @@ gtk_file_chooser_widget_class_init (GtkFileChooserWidgetClass *class)
   gtk_widget_class_bind_template_callback (widget_class, new_folder_popover_active);
   gtk_widget_class_bind_template_callback (widget_class, new_folder_name_changed);
   gtk_widget_class_bind_template_callback (widget_class, new_folder_create_clicked);
+  gtk_widget_class_bind_template_callback (widget_class, location_entry_close_clicked);
 }
 
 static void
