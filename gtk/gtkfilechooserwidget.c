@@ -3682,6 +3682,44 @@ location_sort_func (GtkTreeModel *model,
     }
 }
 
+static gint
+recent_sort_func (GtkTreeModel *model,
+                  GtkTreeIter  *a,
+                  GtkTreeIter  *b,
+                  gpointer      user_data)
+{
+  gint ret;
+
+  ret = time_sort_func (model, a, b, user_data);
+
+  if (ret == 0)
+    ret = name_sort_func (model, a, b, user_data);
+
+  if (ret == 0)
+    ret = location_sort_func (model, a, b, user_data);
+
+  return ret;
+}
+
+static gint
+search_sort_func (GtkTreeModel *model,
+                  GtkTreeIter  *a,
+                  GtkTreeIter  *b,
+                  gpointer      user_data)
+{
+  gint ret;
+
+  ret = location_sort_func (model, a, b, user_data);
+
+  if (ret == 0)
+    ret = name_sort_func (model, a, b, user_data);
+
+  if (ret == 0)
+    ret = time_sort_func (model, a, b, user_data);
+
+  return ret;
+}
+
 /* Callback used when the sort column changes.  We cache the sort order for use
  * in name_sort_func().
  */
@@ -6575,24 +6613,8 @@ search_setup_model (GtkFileChooserWidget *impl)
                                                    impl,
 						   MODEL_COLUMN_TYPES);
 
-  gtk_tree_sortable_set_sort_func (GTK_TREE_SORTABLE (priv->search_model),
-				   MODEL_COL_NAME,
-				   name_sort_func,
-				   impl, NULL);
-  gtk_tree_sortable_set_sort_func (GTK_TREE_SORTABLE (priv->search_model),
-				   MODEL_COL_TIME,
-				   time_sort_func,
-				   impl, NULL);
-  gtk_tree_sortable_set_sort_func (GTK_TREE_SORTABLE (priv->search_model),
-				   MODEL_COL_SIZE,
-				   size_sort_func,
-				   impl, NULL);
-  gtk_tree_sortable_set_sort_func (GTK_TREE_SORTABLE (priv->search_model),
-				   MODEL_COL_LOCATION_TEXT,
-				   location_sort_func,
-				   impl, NULL);
   gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (priv->search_model),
-				           location_sort_func,
+				           search_sort_func,
 				           impl, NULL);
   gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (priv->search_model),
                                         GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID,
@@ -6604,7 +6626,12 @@ search_setup_model (GtkFileChooserWidget *impl)
    */
   gtk_tree_view_set_model (GTK_TREE_VIEW (priv->browse_files_tree_view),
                            GTK_TREE_MODEL (priv->search_model));
-  file_list_set_sort_column_ids (impl);
+
+  gtk_tree_view_column_set_sort_column_id (priv->list_name_column, -1);
+  gtk_tree_view_column_set_sort_column_id (priv->list_time_column, -1);
+  gtk_tree_view_column_set_sort_column_id (priv->list_size_column, -1);
+  gtk_tree_view_column_set_sort_column_id (priv->list_location_column, -1);
+
   gtk_tree_view_column_set_visible (priv->list_location_column, TRUE);
   gtk_tree_view_column_set_title (priv->list_time_column, _("Modified"));
   gtk_tree_view_columns_autosize (GTK_TREE_VIEW (priv->browse_files_tree_view));
@@ -6782,7 +6809,7 @@ recent_setup_model (GtkFileChooserWidget *impl)
   _gtk_file_system_model_set_filter (priv->recent_model,
                                      priv->current_filter);
   gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (priv->recent_model),
-                                           time_sort_func,
+                                           recent_sort_func,
                                            impl, NULL);
   gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (priv->recent_model),
                                         GTK_TREE_SORTABLE_DEFAULT_SORT_COLUMN_ID,
