@@ -30,8 +30,10 @@
 struct _GtkSidebarRow
 {
   GtkListBoxRow parent_instance;
-  GIcon *icon;
-  GtkWidget *icon_widget;
+  GIcon *left_icon;
+  GIcon *right_icon;
+  GtkWidget *left_icon_widget;
+  GtkWidget *right_icon_widget;
   gchar *label;
   gchar *tooltip;
   GtkWidget *label_widget;
@@ -56,7 +58,8 @@ G_DEFINE_TYPE (GtkSidebarRow, gtk_sidebar_row, GTK_TYPE_LIST_BOX_ROW)
 enum
 {
   PROP_0,
-  PROP_ICON,
+  PROP_LEFT_ICON,
+  PROP_RIGHT_ICON,
   PROP_LABEL,
   PROP_TOOLTIP,
   PROP_EJECTABLE,
@@ -93,9 +96,15 @@ gtk_sidebar_row_get_property (GObject    *object,
         break;
       }
 
-    case PROP_ICON:
+    case PROP_LEFT_ICON:
       {
-        g_value_set_object (value, self->icon);
+        g_value_set_object (value, self->left_icon);
+        break;
+      }
+
+    case PROP_RIGHT_ICON:
+      {
+        g_value_set_object (value, self->right_icon);
         break;
       }
 
@@ -204,18 +213,40 @@ gtk_sidebar_row_set_property (GObject      *object,
         break;
       }
 
-    case PROP_ICON:
+    case PROP_LEFT_ICON:
       {
-        g_clear_object (&self->icon);
-        if (value != NULL)
+        g_clear_object (&self->left_icon);
+        object = g_value_get_object (value);
+        if (object != NULL)
           {
-            self->icon = g_object_ref (g_value_get_object (value));
-            gtk_image_set_from_gicon (GTK_IMAGE (self->icon_widget), self->icon, GTK_ICON_SIZE_MENU);
+            self->left_icon = g_object_ref (object);
+            gtk_image_set_from_gicon (GTK_IMAGE (self->left_icon_widget),
+                                      self->left_icon,
+                                      GTK_ICON_SIZE_MENU);
           }
         else
           {
-            self->icon = NULL;
-            gtk_image_clear (GTK_IMAGE (self->icon_widget));
+            gtk_image_clear (GTK_IMAGE (self->left_icon_widget));
+          }
+        break;
+      }
+
+    case PROP_RIGHT_ICON:
+      {
+        g_clear_object (&self->right_icon);
+        object = g_value_get_object (value);
+        if (object != NULL)
+          {
+            self->right_icon = g_object_ref (object);
+            gtk_image_set_from_gicon (GTK_IMAGE (self->right_icon_widget),
+                                      self->right_icon,
+                                      GTK_ICON_SIZE_MENU);
+            gtk_widget_show (self->right_icon_widget);
+          }
+        else
+          {
+            gtk_image_clear (GTK_IMAGE (self->right_icon_widget));
+            gtk_widget_hide (self->right_icon_widget);
           }
         break;
       }
@@ -333,7 +364,8 @@ gtk_sidebar_row_set_property (GObject      *object,
         self->placeholder = g_value_get_boolean (value);
         if (self->placeholder)
           {
-            g_clear_object (&self->icon);
+            g_clear_object (&self->left_icon);
+            g_clear_object (&self->right_icon);
             g_free (self->label);
             self->label = NULL;
             g_free (self->tooltip);
@@ -403,7 +435,8 @@ gtk_sidebar_row_finalize (GObject *object)
 {
   GtkSidebarRow *self = GTK_SIDEBAR_ROW (object);
 
-  g_clear_object (&self->icon);
+  g_clear_object (&self->left_icon);
+  g_clear_object (&self->right_icon);
   g_free (self->label);
   self->label = NULL;
   g_free (self->tooltip);
@@ -441,15 +474,24 @@ gtk_sidebar_row_class_init (GtkSidebarRowClass *klass)
                           G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_SIDEBAR,
                                    gParamSpecs [PROP_SIDEBAR]);
-  gParamSpecs [PROP_ICON] =
-    g_param_spec_object ("icon",
-                         "icon",
-                         "The place icon.",
+  gParamSpecs [PROP_LEFT_ICON] =
+    g_param_spec_object ("left-icon",
+                         "left-icon",
+                         "The left icon.",
                          G_TYPE_ICON,
                          (G_PARAM_READWRITE |
                           G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (object_class, PROP_ICON,
-                                   gParamSpecs [PROP_ICON]);
+  g_object_class_install_property (object_class, PROP_LEFT_ICON,
+                                   gParamSpecs [PROP_LEFT_ICON]);
+  gParamSpecs [PROP_RIGHT_ICON] =
+    g_param_spec_object ("right-icon",
+                         "right-icon",
+                         "The right icon.",
+                         G_TYPE_ICON,
+                         (G_PARAM_READWRITE |
+                          G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_RIGHT_ICON,
+                                   gParamSpecs [PROP_RIGHT_ICON]);
 
   gParamSpecs [PROP_LABEL] =
     g_param_spec_string ("label",
@@ -599,7 +641,8 @@ gtk_sidebar_row_class_init (GtkSidebarRowClass *klass)
   gtk_widget_class_set_template_from_resource (widget_class,
                                                "/org/gtk/libgtk/ui/gtksidebarrow.ui");
 
-  gtk_widget_class_bind_template_child (widget_class, GtkSidebarRow, icon_widget);
+  gtk_widget_class_bind_template_child (widget_class, GtkSidebarRow, left_icon_widget);
+  gtk_widget_class_bind_template_child (widget_class, GtkSidebarRow, right_icon_widget);
   gtk_widget_class_bind_template_child (widget_class, GtkSidebarRow, label_widget);
   gtk_widget_class_bind_template_child (widget_class, GtkSidebarRow, eject_button);
   gtk_widget_class_bind_template_child (widget_class, GtkSidebarRow, event_box);
@@ -614,7 +657,8 @@ gtk_sidebar_row_clone (GtkSidebarRow *self)
 {
  return  g_object_new (GTK_TYPE_SIDEBAR_ROW,
                        "sidebar", self->sidebar,
-                       "icon", self->icon,
+                       "left-icon", self->left_icon,
+                       "right-icon", self->right_icon,
                        "label", self->label,
                        "tooltip", self->tooltip,
                        "ejectable", self->ejectable,
