@@ -29,6 +29,12 @@ static const gchar provider_xml[] =
   "    <method name='GetStatus'>"
   "      <arg type='i' name='name' direction='out'/>"
   "    </method>"
+  "    <method name='GetIcon'>"
+  "      <arg type='v' name='icon' direction='out'/>"
+  "    </method>"
+  "    <method name='GetPath'>"
+  "      <arg type='s' name='path' direction='out'/>"
+  "    </method>"
   "  </interface>"
   "</node>";
 
@@ -38,11 +44,14 @@ typedef struct
   gchar *name;
   GtkCloudProviderStatus status;
   GIcon *icon;
-  GMenuModel *menu;
+  GMenuModel *menu_model;
+  GActionGroup *action_group;
 
+  GDBusConnection *bus;
   GDBusProxy *proxy;
   gchar *bus_name;
   gchar *object_path;
+  GCancellable *cancellable;
 } GtkCloudProviderPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (GtkCloudProvider, gtk_cloud_provider, G_TYPE_OBJECT)
@@ -54,6 +63,42 @@ enum {
 
 static guint gSignals [LAST_SIGNAL];
 
+static void connect_to_items_changed (GMenuModel *model,
+                                      GCallback   callback,
+                                      gpointer    data);
+static void
+on_get_icon (GObject      *source_object,
+             GAsyncResult *res,
+             gpointer      user_data)
+{
+  GtkCloudProvider *self = GTK_CLOUD_PROVIDER (user_data);
+  GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
+  GError *error = NULL;
+  GVariant *variant_tuple;
+  GVariant *variant_dict;
+  GVariant *variant;
+
+  g_clear_object (&priv->icon);
+
+  variant_tuple = g_dbus_proxy_call_finish (priv->proxy, res, &error);
+  g_print ("variant tuple %s\n", g_variant_print (variant_tuple, TRUE));
+  if (error != NULL)
+    {
+      g_warning ("Error getting the provider icon %s", error->message);
+      goto out;
+    }
+
+  variant_dict = g_variant_get_child_value (variant_tuple, 0);
+  variant = g_variant_get_child_value (variant_dict, 0);
+  priv->icon = g_icon_deserialize (variant);
+  g_variant_unref (variant);
+  g_variant_unref (variant_dict);
+
+out:
+  g_variant_unref (variant_tuple);
+  g_signal_emit_by_name (self, "changed");
+}
+
 static void
 on_get_name (GObject      *source_object,
              GAsyncResult *res,
@@ -64,6 +109,9 @@ on_get_name (GObject      *source_object,
   GError *error = NULL;
   GVariant *variant_tuple;
   GVariant *variant;
+
+  if (priv->name != NULL)
+    g_free (priv->name);
 
   variant_tuple = g_dbus_proxy_call_finish (priv->proxy, res, &error);
   if (error != NULL)
@@ -108,6 +156,48 @@ out:
   g_signal_emit_by_name (self, "changed");
 }
 
+static void
+on_items_changed (GMenuModel *model,
+                  gint        position,
+                  gint        removed,
+                  gint        added,
+                  gpointer    user_data)
+{
+  GtkCloudProvider *self = GTK_CLOUD_PROVIDER (user_data);
+  GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
+
+  g_print ("items changed\n");
+  connect_to_items_changed (model, G_CALLBACK (on_items_changed), self);
+  g_signal_emit_by_name (self, "changed");
+}
+
+static void
+connect_to_items_changed (GMenuModel *model,
+                          GCallback   callback,
+                          gpointer    data)
+{
+  gint i;
+  GMenuModel *m;
+  GMenuLinkIter *iter;
+
+  if (!g_object_get_data (G_OBJECT (model), "handler-connected"))
+    {
+      g_signal_connect (model, "items-changed", callback, data);
+      g_object_set_data (G_OBJECT (model), "handler-connected", GINT_TO_POINTER (1));
+    }
+  for (i = 0; i < g_menu_model_get_n_items (model); i++)
+    {
+      iter = g_menu_model_iterate_item_links (model, i);
+      while (g_menu_link_iter_next (iter))
+        {
+          m = g_menu_link_iter_get_value (iter);
+          connect_to_items_changed (m, callback, data);
+          g_object_unref (m);
+        }
+      g_object_unref (iter);
+    }
+}
+
 void
 gtk_cloud_provider_update (GtkCloudProvider *self)
 {
@@ -132,6 +222,28 @@ gtk_cloud_provider_update (GtkCloudProvider *self)
                          NULL,
                          (GAsyncReadyCallback) on_get_status,
                          self);
+
+      g_dbus_proxy_call (priv->proxy,
+                         "GetIcon",
+                         g_variant_new ("()"),
+                         G_DBUS_CALL_FLAGS_NONE,
+                         -1,
+                         NULL,
+                         (GAsyncReadyCallback) on_get_icon,
+                         self);
+
+      priv->menu_model = (GMenuModel*) g_dbus_menu_model_get (priv->bus,
+                                                              priv->bus_name,
+                                                              priv->object_path);
+      connect_to_items_changed (priv->menu_model,
+                                G_CALLBACK (on_items_changed),
+                                self);
+
+      g_print ("n items %d\n", g_menu_model_get_n_items (priv->menu_model));
+      priv->action_group = (GActionGroup*) g_dbus_action_group_get (priv->bus,
+                                                                    priv->bus_name,
+                                                                    priv->object_path);
+
     }
 }
 
@@ -141,17 +253,61 @@ on_proxy_created (GObject      *source_object,
                   gpointer      user_data)
 {
   GError *error = NULL;
-  GtkCloudProvider *self = GTK_CLOUD_PROVIDER (user_data);
-  GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
+  GtkCloudProvider *self;
+  GtkCloudProviderPrivate *priv;
+  GDBusProxy *proxy;
 
-  priv->proxy = g_dbus_proxy_new_for_bus_finish (res, &error);
+  proxy = g_dbus_proxy_new_for_bus_finish (res, &error);
   if (error != NULL)
     {
-      g_warning ("Error creating proxy for cloud provider %s", error->message);
+      if (error->code != G_IO_ERROR_CANCELLED)
+        g_warning ("Error creating proxy for cloud provider %s", error->message);
+      return;
+    }
+  self = GTK_CLOUD_PROVIDER (user_data);
+  priv = gtk_cloud_provider_get_instance_private (self);
+
+  priv->proxy = proxy;
+
+  gtk_cloud_provider_update (self);
+}
+
+static void
+on_bus_acquired (GObject      *source_object,
+                 GAsyncResult *res,
+                 gpointer      user_data)
+{
+  GError *error = NULL;
+  GtkCloudProvider *self;
+  GDBusConnection *bus;
+  GtkCloudProviderPrivate *priv;
+  GDBusInterfaceInfo *interface_info;
+  GDBusNodeInfo *proxy_info;
+
+  bus = g_bus_get_finish (res, &error);
+  if (error != NULL)
+    {
+      if (error->code != G_IO_ERROR_CANCELLED)
+        g_warning ("Error acdquiring bus for cloud provider %s", error->message);
       return;
     }
 
-  gtk_cloud_provider_update (self);
+  self = GTK_CLOUD_PROVIDER (user_data);
+  priv = gtk_cloud_provider_get_instance_private (user_data);
+  priv->bus = bus;
+  proxy_info = g_dbus_node_info_new_for_xml (provider_xml, &error);
+  interface_info = g_dbus_node_info_lookup_interface (proxy_info, "org.gtk.CloudProvider");
+  g_clear_object (&priv->cancellable);
+  priv->cancellable = g_cancellable_new ();
+  g_dbus_proxy_new (priv->bus,
+                    G_DBUS_PROXY_FLAGS_NONE,
+                    interface_info,
+                    priv->bus_name,
+                    priv->object_path,
+                    "org.gtk.CloudProvider",
+                    priv->cancellable,
+                    on_proxy_created,
+                    self);
 }
 
 GtkCloudProvider*
@@ -160,26 +316,18 @@ gtk_cloud_provider_new (const gchar *bus_name,
 {
   GtkCloudProvider *self;
   GtkCloudProviderPrivate *priv;
-  GDBusNodeInfo *proxy_info;
-  GDBusInterfaceInfo *interface_info;
-  GError *error = NULL;
 
   self = g_object_new (GTK_TYPE_CLOUD_PROVIDER, NULL);
   priv = gtk_cloud_provider_get_instance_private (self);
 
-  proxy_info = g_dbus_node_info_new_for_xml (provider_xml, &error);
-  interface_info = g_dbus_node_info_lookup_interface (proxy_info, "org.gtk.CloudProvider");
   priv->bus_name = g_strdup (bus_name);
   priv->object_path = g_strdup (object_path);
-  g_dbus_proxy_new_for_bus (G_BUS_TYPE_SESSION,
-                            G_DBUS_PROXY_FLAGS_NONE,
-                            interface_info,
-                            bus_name,
-                            object_path,
-                            "org.gtk.CloudProvider",
-                            NULL,
-                            on_proxy_created,
-                            self);
+  priv->cancellable = g_cancellable_new ();
+  priv->status = GTK_CLOUD_PROVIDER_STATUS_INVALID;
+  g_bus_get (G_BUS_TYPE_SESSION,
+             priv->cancellable,
+             on_bus_acquired,
+             self);
 
   return self;
 }
@@ -190,9 +338,13 @@ gtk_cloud_provider_finalize (GObject *object)
   GtkCloudProvider *self = (GtkCloudProvider *)object;
   GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
 
+  g_cancellable_cancel (priv->cancellable);
+  g_clear_object (&priv->cancellable);
   g_free (priv->name);
   g_clear_object (&priv->icon);
-  g_clear_object (&priv->menu);
+  g_clear_object (&priv->menu_model);
+  g_clear_object (&priv->action_group);
+  g_clear_object (&priv->bus);
   g_clear_object (&priv->proxy);
   g_free (priv->bus_name);
   g_free (priv->object_path);
@@ -222,9 +374,12 @@ gtk_cloud_provider_class_init (GtkCloudProviderClass *klass)
 static void
 gtk_cloud_provider_init (GtkCloudProvider *self)
 {
+  GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
+
+  priv->status = GTK_CLOUD_PROVIDER_STATUS_INVALID;
 }
 
-const gchar*
+gchar*
 gtk_cloud_provider_get_name (GtkCloudProvider *self)
 {
   GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
@@ -249,10 +404,10 @@ gtk_cloud_provider_get_icon (GtkCloudProvider *self)
 }
 
 GMenuModel*
-gtk_cloud_provider_get_menu (GtkCloudProvider *self)
+gtk_cloud_provider_get_menu_model (GtkCloudProvider *self)
 {
   GtkCloudProviderPrivate *priv = gtk_cloud_provider_get_instance_private (self);
 
-  return priv->menu;
+  return priv->menu_model;
 }
 

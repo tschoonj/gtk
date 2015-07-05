@@ -199,6 +199,16 @@ static void
 on_cloud_provider_changed (GtkCloudProvider        *cloud_provider,
                            GtkCloudProviderManager *self)
 {
+  GIcon *icon;
+  gchar *name;
+  guint status;
+
+  name = gtk_cloud_provider_get_name (cloud_provider);
+  icon = gtk_cloud_provider_get_icon (cloud_provider);
+  status = gtk_cloud_provider_get_status (cloud_provider);
+  if (name == NULL || icon == NULL || status == GTK_CLOUD_PROVIDER_STATUS_INVALID)
+    return;
+
   g_signal_emit_by_name (self, "changed", NULL);
 }
 

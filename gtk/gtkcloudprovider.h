@@ -29,6 +29,7 @@
 G_BEGIN_DECLS
 
 typedef enum {
+  GTK_CLOUD_PROVIDER_STATUS_INVALID,
   GTK_CLOUD_PROVIDER_STATUS_IDLE,
   GTK_CLOUD_PROVIDER_STATUS_SYNCING,
   GTK_CLOUD_PROVIDER_STATUS_ERROR
@@ -61,13 +62,13 @@ GDK_AVAILABLE_IN_3_18
 GtkCloudProvider *gtk_cloud_provider_new (const gchar *bus_name,
                                           const gchar *object_path);
 GDK_AVAILABLE_IN_3_18
-const gchar* gtk_cloud_provider_get_name (GtkCloudProvider *self);
+gchar* gtk_cloud_provider_get_name (GtkCloudProvider *self);
 GDK_AVAILABLE_IN_3_18
 GtkCloudProviderStatus gtk_cloud_provider_get_status (GtkCloudProvider *self);
 GDK_AVAILABLE_IN_3_18
 GIcon *gtk_cloud_provider_get_icon (GtkCloudProvider *self);
 GDK_AVAILABLE_IN_3_18
-GMenuModel *gtk_cloud_provider_get_menu (GtkCloudProvider *self);
+GMenuModel *gtk_cloud_provider_get_menu_model (GtkCloudProvider *self);
 
 G_END_DECLS
 

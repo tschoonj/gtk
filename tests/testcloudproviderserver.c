@@ -1,13 +1,8 @@
 #include <gio/gio.h>
 #include <stdlib.h>
+#include <gtk/gtk.h>
 
-#define TIMEOUT 1000
-
-enum {
-  IDLE,
-  SYNCING,
-  ERROR
-};
+#define TIMEOUT 2000
 
 typedef struct _CloudProviderClass CloudProviderClass;
 typedef struct _CloudProvider CloudProvider;
@@ -23,6 +18,7 @@ struct _CloudProvider
 
   gchar *name;
   gint status;
+  GIcon *icon;
   GDBusProxy *manager_proxy;
   guint timeout_handler;
 };
@@ -37,6 +33,8 @@ cloud_provider_finalize (GObject *object)
   CloudProvider *self = (CloudProvider*)object;
 
   g_free (self->name);
+  g_clear_object (&self->icon);
+  g_clear_object (&self->manager_proxy);
 
   G_OBJECT_CLASS (cloud_provider_parent_class)->finalize (object);
 }
@@ -44,8 +42,17 @@ cloud_provider_finalize (GObject *object)
 static void
 cloud_provider_init (CloudProvider *self)
 {
+  GFile *icon_file;
+  gchar *uri;
+
   self->name = "MyCloud";
-  self->status = SYNCING;
+  self->status = GTK_CLOUD_PROVIDER_STATUS_INVALID;
+  uri = g_build_filename (g_get_current_dir (), "apple-red.png", NULL);
+  icon_file = g_file_new_for_uri (uri);
+  self->icon = g_file_icon_new (icon_file);
+
+  g_object_unref (icon_file);
+  g_free (uri);
 }
 
 static void
@@ -60,7 +67,7 @@ static void
 cloud_provider_set_status (CloudProvider *self,
                            gint           status)
 {
-  /* Inform manager that the provider changed */
+  /* Inform the manager that the provider changed */
   self->status = status;
   g_dbus_proxy_call (self->manager_proxy,
                      "CloudProviderChanged",
@@ -86,6 +93,9 @@ static const gchar provider_xml[] =
   "    <method name='GetStatus'>"
   "      <arg type='i' name='status' direction='out'/>"
   "    </method>"
+  "    <method name='GetIcon'>"
+  "      <arg type='v' name='icon' direction='out'/>"
+  "    </method>"
   "  </interface>"
   "</node>";
 
@@ -96,6 +106,196 @@ static const gchar manager_xml[] =
   "    </method>"
   "  </interface>"
   "</node>";
+
+static const gchar menu_markup[] =
+  "<interface>\n"
+  "<menu id='menu'>\n"
+  "  <section>\n"
+  "    <item>\n"
+  "      <attribute name='label' translatable='yes'>MyCloud website</attribute>\n"
+  "      <attribute name='action'>website</attribute>\n"
+  "    </item>\n"
+  "    <item>\n"
+  "      <attribute name='label' translatable='yes'>MyCloud Photos</attribute>\n"
+  "      <attribute name='action'>photos</attribute>\n"
+  "    </item>\n"
+  "    <item>\n"
+  "      <attribute name='label' translatable='yes'>MyCloud Notes</attribute>\n"
+  "      <attribute name='action'>notes</attribute>\n"
+  "    </item>\n"
+  "  </section>\n"
+  "  <section>\n"
+  "    <item>\n"
+  "      <attribute name='label' translatable='yes'>Allow Synchronization</attribute>\n"
+  "      <attribute name='action'>allow-sync</attribute>\n"
+  "    </item>\n"
+  "    <submenu>\n"
+  "      <attribute name='label' translatable='yes'>Buy Storage</attribute>\n"
+  "      <item>\n"
+  "        <attribute name='label' translatable='yes'>5GB for 200CZK</attribute>\n"
+  "        <attribute name='action'>buy</attribute>\n"
+  "        <attribute name='target'>5</attribute>\n"
+  "      </item>\n"
+  "      <item>\n"
+  "        <attribute name='label' translatable='yes'>10GB for 500CZK</attribute>\n"
+  "        <attribute name='action'>buy</attribute>\n"
+  "        <attribute name='target'>10</attribute>\n"
+  "      </item>\n"
+  "      <item>\n"
+  "        <attribute name='label' translatable='yes'>30GB for 600CZK</attribute>\n"
+  "        <attribute name='action'>buy</attribute>\n"
+  "        <attribute name='target'>30</attribute>\n"
+  "      </item>\n"
+  "    </submenu>\n"
+  "  </section>\n"
+  "</menu>\n"
+  "</interface>\n";
+
+static void
+activate_action (GSimpleAction *action,
+                 GVariant      *parameter,
+                 gpointer       user_data)
+{
+  g_print ("Action %s activated\n", g_action_get_name (G_ACTION (action)));
+}
+
+static void
+activate_toggle (GSimpleAction *action,
+                 GVariant      *parameter,
+                 gpointer       user_data)
+{
+  GVariant *old_state, *new_state;
+
+  old_state = g_action_get_state (G_ACTION (action));
+  new_state = g_variant_new_boolean (!g_variant_get_boolean (old_state));
+
+  g_print ("Toggle action %s activated, state changes from %d to %d\n",
+           g_action_get_name (G_ACTION (action)),
+           g_variant_get_boolean (old_state),
+           g_variant_get_boolean (new_state));
+
+  g_simple_action_set_state (action, new_state);
+  g_variant_unref (old_state);
+}
+
+static void
+activate_radio (GSimpleAction *action,
+                GVariant      *parameter,
+                gpointer       user_data)
+{
+  GVariant *old_state, *new_state;
+
+  old_state = g_action_get_state (G_ACTION (action));
+  new_state = g_variant_new_string (g_variant_get_string (parameter, NULL));
+
+  g_print ("Radio action %s activated, state changes from %s to %s\n",
+           g_action_get_name (G_ACTION (action)),
+           g_variant_get_string (old_state, NULL),
+           g_variant_get_string (new_state, NULL));
+
+  g_simple_action_set_state (action, new_state);
+  g_variant_unref (old_state);
+}
+
+static GActionEntry actions[] = {
+  { "website",  activate_action, NULL, NULL, NULL },
+  { "photos",  activate_action, NULL, NULL, NULL },
+  { "notes",   activate_action, NULL, NULL, NULL },
+  { "allow-sync",  activate_toggle, NULL, "true", NULL },
+  { "buy",  activate_radio,  "s",  NULL, NULL },
+};
+
+static void
+print_gmenu_model (GMenuModel  *model)
+{
+  gint i, n_items;
+  GMenuModel *submodel = NULL;
+  gchar *label;
+
+  n_items = g_menu_model_get_n_items (model);
+  g_print ("n items %d\n", n_items);
+
+  for (i = 0; i < n_items; i++)
+    {
+      label = NULL;
+      if (g_menu_model_get_item_attribute (model, i, G_MENU_ATTRIBUTE_LABEL, "s", &label))
+        {
+          g_print ("Menu item - %s\n", label);
+          if (label != NULL)
+            g_free (label);
+        }
+
+      submodel = g_menu_model_get_item_link (model, i, G_MENU_LINK_SECTION);
+      if (!submodel)
+       submodel = g_menu_model_get_item_link (model, i, G_MENU_LINK_SUBMENU);
+
+      if (!submodel)
+        {
+          g_print ("no submodel\n");
+          continue;
+        }
+
+      print_gmenu_model (submodel);
+      g_clear_object (&submodel);
+  }
+}
+
+static GMenuModel *
+get_model (void)
+{
+  GError *error = NULL;
+  GtkBuilder *builder;
+  GMenuModel *menu;
+
+  builder = gtk_builder_new ();
+  gtk_builder_add_from_string (builder, menu_markup, -1, &error);
+  g_assert_no_error (error);
+
+  menu = g_object_ref (gtk_builder_get_object (builder, "menu"));
+  g_object_unref (builder);
+
+  return menu;
+}
+
+static GActionGroup *
+get_action_group (void)
+{
+  GSimpleActionGroup *group;
+
+  group = g_simple_action_group_new ();
+
+  g_action_map_add_action_entries (G_ACTION_MAP (group),
+                                   actions,
+                                   G_N_ELEMENTS (actions), NULL);
+
+  return G_ACTION_GROUP (group);
+}
+
+static void
+export_menu (GDBusConnection *bus,
+             gchar *object_path)
+{
+  GMenuModel *model;
+  GActionGroup *action_group;
+  GError *error;
+
+  model = get_model ();
+  action_group = get_action_group ();
+  print_gmenu_model (model);
+
+  g_print ("Exporting menus on the bus...\n");
+  if (!g_dbus_connection_export_menu_model (bus, object_path, model, &error))
+    {
+      g_warning ("Menu export failed: %s", error->message);
+      exit (1);
+    }
+  g_print ("Exporting actions on the bus...\n");
+  if (!g_dbus_connection_export_action_group (bus, object_path, action_group, &error))
+    {
+      g_warning ("Action export failed: %s", error->message);
+      exit (1);
+    }
+}
 
 static void
 handle_method_call (GDBusConnection       *connection,
@@ -120,6 +320,11 @@ handle_method_call (GDBusConnection       *connection,
       g_dbus_method_invocation_return_value (invocation,
                                              g_variant_new ("(i)", cloud_provider->status));
     }
+  else if (g_strcmp0 (method_name, "GetIcon") == 0)
+    {
+      g_dbus_method_invocation_return_value (invocation,
+                                             g_variant_new ("(v)", g_icon_serialize (cloud_provider->icon)));
+    }
 }
 
 static const GDBusInterfaceVTable interface_vtable =
@@ -135,7 +340,7 @@ on_bus_acquired (GDBusConnection *connection,
   CloudProvider *cloud_provider = user_data;
   guint registration_id;
 
-  g_print ("Registering cloud provider server 'MyCloud'\n");
+  g_debug ("Registering cloud provider server 'MyCloud'\n");
   registration_id = g_dbus_connection_register_object (connection,
                                                        "/org/gtk/CloudProviderServerExample",
                                                        introspection_data->interfaces[0],
@@ -144,6 +349,8 @@ on_bus_acquired (GDBusConnection *connection,
                                                        NULL,  /* user_data_free_func */
                                                        NULL); /* GError** */
   g_assert (registration_id > 0);
+  /* Export a menu for our own application */
+  export_menu (connection, "/org/gtk/CloudProviderServerExample");
 }
 
 static void
@@ -169,7 +376,9 @@ change_provider (gpointer user_data)
   gint new_status;
 
   rand = g_rand_new ();
-  new_status = g_rand_int_range (rand, IDLE, ERROR + 1);
+  new_status = g_rand_int_range (rand,
+                                 GTK_CLOUD_PROVIDER_STATUS_IDLE,
+                                 GTK_CLOUD_PROVIDER_STATUS_ERROR + 1);
 
   cloud_provider_set_status (cloud_provider, new_status);
 

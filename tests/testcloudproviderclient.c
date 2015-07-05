@@ -2,11 +2,40 @@
 #include <glib.h>
 #include <gtk/gtk.h>
 
-enum {
-  IDLE,
-  SYNCING,
-  ERROR
-};
+static void
+print_gmenu_model (GMenuModel  *model)
+{
+  gint i, n_items;
+  GMenuModel *submodel = NULL;
+  gchar *label;
+
+  n_items = g_menu_model_get_n_items (model);
+  g_print ("n items %d\n", n_items);
+
+  for (i = 0; i < n_items; i++)
+    {
+      label = NULL;
+      if (g_menu_model_get_item_attribute (model, i, G_MENU_ATTRIBUTE_LABEL, "s", &label))
+        {
+          g_print ("Menu item - %s\n", label);
+          if (label != NULL)
+            g_free (label);
+        }
+
+      submodel = g_menu_model_get_item_link (model, i, G_MENU_LINK_SECTION);
+      if (!submodel)
+       submodel = g_menu_model_get_item_link (model, i, G_MENU_LINK_SUBMENU);
+
+      if (!submodel)
+        {
+          g_print ("no submodel\n");
+          continue;
+        }
+
+      print_gmenu_model (submodel);
+      g_clear_object (&submodel);
+  }
+}
 
 static void
 on_manager_changed (GtkCloudProviderManager *manager)
@@ -15,6 +44,9 @@ on_manager_changed (GtkCloudProviderManager *manager)
   GList *l;
   gint provider_status;
   gchar *status_string;
+  GIcon *icon;
+  gchar *icon_representation;
+  GMenuModel *menu_model;
 
   providers = gtk_cloud_provider_manager_get_providers (manager);
   g_print ("Providers data\n");
@@ -24,15 +56,19 @@ on_manager_changed (GtkCloudProviderManager *manager)
       provider_status = gtk_cloud_provider_get_status (GTK_CLOUD_PROVIDER (l->data));
       switch (provider_status)
         {
-        case IDLE:
+        case GTK_CLOUD_PROVIDER_STATUS_INVALID:
+          status_string = "invalid";
+          break;
+
+        case GTK_CLOUD_PROVIDER_STATUS_IDLE:
           status_string = "idle";
           break;
 
-        case SYNCING:
+        case GTK_CLOUD_PROVIDER_STATUS_SYNCING:
           status_string = "syncing";
           break;
 
-        case ERROR:
+        case GTK_CLOUD_PROVIDER_STATUS_ERROR:
           status_string = "error";
           break;
 
@@ -40,9 +76,18 @@ on_manager_changed (GtkCloudProviderManager *manager)
           g_assert_not_reached ();
         }
 
-      g_print ("Name - %s Status - %s\n",
+      icon = gtk_cloud_provider_get_icon (l->data);
+      icon_representation = g_icon_to_string (icon);
+
+      g_print ("Name - %s Status - %s Icon - %s\n",
                gtk_cloud_provider_get_name (GTK_CLOUD_PROVIDER (l->data)),
-               status_string);
+               status_string,
+               icon_representation);
+
+      g_free (icon_representation);
+
+      menu_model = gtk_cloud_provider_get_menu_model (l->data);
+      print_gmenu_model (menu_model);
     }
   g_print ("\n");
 }
@@ -59,9 +104,7 @@ main (gint   argc,
   //gtk_cloud_provider_manager_update (manager);
 
   loop = g_main_loop_new (NULL, FALSE);
-  g_print ("before loop\n");
   g_main_loop_run (loop);
-  g_print ("after\n");
 
   return 0;
 }
