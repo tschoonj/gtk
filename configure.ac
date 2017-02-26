@@ -181,7 +181,7 @@ EXE_MANIFEST_ARCHITECTURE=X86
 DISABLE_ON_W32=''
 case "$host" in
   *-*-mingw*)
-    dnl Comment-out certain gtk3.types.in lines
+    # Comment-out certain gtk3.types.in lines
     DISABLE_ON_W32='%'
     os_win32=yes
     gio_can_sniff=no
@@ -212,10 +212,10 @@ case $host in
     ;;
 esac
 
-dnl
-dnl Check for a working C++ compiler, but do not bail out, if none is found.
-dnl We use this for an automated test for C++ header correctness.
-dnl
+#
+# Check for a working C++ compiler, but do not bail out, if none is found.
+# We use this for an automated test for C++ header correctness.
+#
 AC_CHECK_TOOLS(CXX, [$CCC c++ g++ gcc CC cxx cc++ cl], gcc)
 AC_LANG_PUSH([C++])
 
@@ -244,7 +244,7 @@ if test "$os_win32" = "yes"; then
   enable_shared=yes
 fi
 
-dnl Initialize libtool
+# Initialize libtool
 LT_PREREQ([2.2.6])
 LT_INIT([disable-static win32-dll])
 # Create libtool early, because it's used in configure
@@ -285,7 +285,7 @@ AM_CONDITIONAL(MS_LIB_AVAILABLE, test x$ms_librarian = xyes)
 m4_define([debug_default],
           m4_if(m4_eval(gtk_minor_version % 2), [1], [yes], [minimum]))
 
-dnl declare --enable-* args and collect ac_help strings
+# declare --enable-* args and collect ac_help strings
 AC_ARG_ENABLE(debug,
               [AS_HELP_STRING([--enable-debug=@<:@no/minimum/yes@:>@],
                               [turn on debugging @<:@default=debug_default@:>@])],,
@@ -518,7 +518,7 @@ GTK_DEBUG_FLAGS="$GTK_DEBUG_FLAGS $GLIB_VERSION_CFLAGS"
 # Build time sanity check...
 AM_SANITY_CHECK
 
-changequote(,)dnl
+changequote(,)#
 if test "x$GCC" = "xyes"; then
   case " $CFLAGS " in
   *[\ \	]-Wall[\ \	]*) ;;
@@ -537,7 +537,7 @@ if test "x$GCC" = "xyes"; then
     esac
   fi
 fi
-changequote([,])dnl
+changequote([,])#
 
 # Ensure MSVC-compatible struct packing convention is used when
 # compiling for Win32 with gcc.
@@ -581,11 +581,11 @@ fi
 ## the version requirements since those make the module lists
 ## annoying to construct
 PKG_CHECK_MODULES(BASE_DEPENDENCIES,
-  [glib-2.0 >= glib_required_version dnl
-   atk >= atk_required_version dnl
-   pango >= pango_required_version dnl
-   cairo >= cairo_required_version dnl
-   cairo-gobject >= cairo_required_version dnl
+  [glib-2.0 >= glib_required_version
+   atk >= atk_required_version
+   pango >= pango_required_version
+   cairo >= cairo_required_version
+   cairo-gobject >= cairo_required_version
    gdk-pixbuf-2.0 >= gdk_pixbuf_required_version])
 
 PKG_CHECK_MODULES(CAIRO_BACKEND, [$cairo_backends])
@@ -610,9 +610,9 @@ You need a cairo snapshot 1.15.x or 1.16.x release or newer])])
 
 PKG_CHECK_MODULES(GMODULE, [gmodule-2.0])
 
-dnl ******************************************************
-dnl * See whether to include shared library dependencies *
-dnl ******************************************************
+# ******************************************************
+# * See whether to include shared library dependencies *
+# ******************************************************
 
 AC_ARG_ENABLE(explicit-deps,
               [AS_HELP_STRING([--enable-explicit-deps=@<:@yes/no/auto@:>@],
@@ -697,8 +697,8 @@ fi
 
 LIBS="$LIBS $INTLLIBS"
 
-dnl The DU4 header files don't provide library prototypes unless
-dnl -std1 is given to the native cc.
+# The DU4 header files don't provide library prototypes unless
+# -std1 is given to the native cc.
 AC_MSG_CHECKING([for extra flags to get ANSI library prototypes])
 
 gtk_save_LIBS=$LIBS
@@ -809,8 +809,8 @@ GLIB_LIBS_FOR_BUILD=`$PKG_CONFIG_FOR_BUILD --libs glib-2.0 gobject-2.0 gmodule-n
 AC_SUBST(GLIB_CFLAGS_FOR_BUILD)
 AC_SUBST(GLIB_LIBS_FOR_BUILD)
 
-dnl Check for bind_textdomain_codeset, including -lintl if GLib brings it in.
-dnl
+# Check for bind_textdomain_codeset, including -lintl if GLib brings it in.
+#
 gtk_save_LIBS=$LIBS
 LIBS="$LIBS $GLIB_LIBS"
 AC_CHECK_FUNCS(bind_textdomain_codeset)
@@ -857,7 +857,7 @@ if test m4_eval(gtk_minor_version % 2) = 0 ; then
                      [Disable deprecation warnings from glib])
 fi
 
-dnl
+#
 saved_cflags="$CFLAGS"
 saved_ldflags="$LDFLAGS"
 
@@ -898,8 +898,8 @@ else
         dynworks=$I
     done
 
-    dnl Now we check to see if our libtool supports shared lib deps
-    dnl (in a rather ugly way even)
+    # Now we check to see if our libtool supports shared lib deps
+    # (in a rather ugly way even)
     if $dynworks; then
         module_libtool_config="${CONFIG_SHELL-/bin/sh} ./libtool --config"
         module_deplibs_check=`$module_libtool_config | \
@@ -1001,7 +1001,7 @@ AC_CHECK_HEADER(sys/sysinfo.h,
                 AC_DEFINE(HAVE_SYS_SYSINFO_H, 1,
                           [Define to 1 if sys/sysinfo.h is available]))
 
-dnl Look for a host system's gdk-pixbuf-csource if we are cross-compiling
+# Look for a host system's gdk-pixbuf-csource if we are cross-compiling
 
 AM_CONDITIONAL(CROSS_COMPILING, test $cross_compiling = yes)
 
@@ -1487,12 +1487,12 @@ AC_SUBST(GDK_PIXBUF_LIBS)
 ########################
 
 old_LIBS="$LIBS"
-dnl Checks for inet libraries:
+# Checks for inet libraries:
 AC_SEARCH_LIBS(gethostent, nsl)
 AC_SEARCH_LIBS(setsockopt, socket)
 AC_SEARCH_LIBS(connect, inet)
 
-dnl check for the sockaddr_un.sun_len member
+# check for the sockaddr_un.sun_len member
 AC_CHECK_MEMBER([struct sockaddr_un.sun_len],
 		[struct_sockaddr_un_sun_len=true],
 		[struct_sockaddr_un_suin_len=false],
@@ -1793,7 +1793,7 @@ if test "$enable_man" != no; then
 fi
 
 if test "$enable_man" != no; then
-  dnl check for DocBook DTD in the local catalog
+  # check for DocBook DTD in the local catalog
   JH_CHECK_XML_CATALOG([-//OASIS//DTD DocBook XML V4.1.2//EN],
      [DocBook XML DTD V4.1.2], [have_docbook_dtd=yes], [have_docbook_dtd=no])
   if test "$have_docbook_dtd" != yes; then
@@ -1805,7 +1805,7 @@ if test "$enable_man" != no; then
 fi
 
 if test "$enable_man" != no; then
-  dnl check for DocBook XSL stylesheets in the local catalog
+  # check for DocBook XSL stylesheets in the local catalog
   JH_CHECK_XML_CATALOG([http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl],
      [DocBook XSL Stylesheets], [have_docbook_style=yes],[have_docbook_style=no])
   if test "$have_docbook_style" != yes; then
@@ -1842,13 +1842,13 @@ AM_CONDITIONAL(ENABLE_DOC_CROSS_REFERENCES, test x$enable_doc_cross_references !
 GDK_HIDDEN_VISIBILITY_CFLAGS=""
 case "$host" in
   *-*-mingw*)
-    dnl on mingw32 we do -fvisibility=hidden and __declspec(dllexport)
+    # on mingw32 we do -fvisibility=hidden and __declspec(dllexport)
     AC_DEFINE([_GDK_EXTERN], [__attribute__((visibility("default"))) __declspec(dllexport) extern],
               [defines how to decorate public symbols while building])
     CFLAGS="${CFLAGS} -fvisibility=hidden"
     ;;
   *)
-    dnl on other compilers, check if we can do -fvisibility=hidden
+    # on other compilers, check if we can do -fvisibility=hidden
     SAVED_CFLAGS="${CFLAGS}"
     CFLAGS="-fvisibility=hidden"
     AC_MSG_CHECKING([for -fvisibility=hidden compiler flag])
@@ -1915,41 +1915,41 @@ _______EOF
 gdk_windowing='$GDK_WINDOWING'
 ])
 
-dnl Compiler flags; macro originates from systemd
-dnl See https://bugzilla.gnome.org/show_bug.cgi?id=608953
+# Compiler flags; macro originates from systemd
+# See https://bugzilla.gnome.org/show_bug.cgi?id=608953
 AC_ARG_ENABLE(compile-warnings,
               [AS_HELP_STRING([--disable-compile-warnings], [Do not use builtin compiler warnings])],
               [],
               [enable_compile_warnings=yes])
 AS_IF([test "x$enable_compile_warnings" = xyes], [
-  AX_APPEND_COMPILE_FLAGS([ dnl
-    -Wall dnl
-    -Wundef dnl
-    -Wnested-externs dnl
-    -Wpointer-arith dnl
-    -Wstrict-prototypes dnl
-    -Wcast-align dnl
-    -Wuninitialized dnl
-    -Wmissing-include-dirs dnl
-    -Wshadow dnl
-    -Wformat=2 dnl
-    -Wformat-nonliteral dnl
-    -Wformat-security dnl
-    -Wimplicit-function-declaration dnl
-    -Werror=redundant-decls dnl
-    -Werror=write-strings dnl
-    -Werror=missing-declarations dnl
-    -Werror=missing-prototypes dnl
-    -Werror=empty-body dnl
-    -Werror=init-self dnl
+  AX_APPEND_COMPILE_FLAGS([ \
+    -Wall \
+    -Wundef \
+    -Wnested-externs \
+    -Wpointer-arith \
+    -Wstrict-prototypes \
+    -Wcast-align \
+    -Wuninitialized \
+    -Wmissing-include-dirs \
+    -Wshadow \
+    -Wformat=2 \
+    -Wformat-nonliteral \
+    -Wformat-security \
+    -Wimplicit-function-declaration \
+    -Werror=redundant-decls \
+    -Werror=write-strings \
+    -Werror=missing-declarations \
+    -Werror=missing-prototypes \
+    -Werror=empty-body \
+    -Werror=init-self \
   ], [GTK_WARN_CFLAGS])
 ])
 AC_SUBST(GTK_WARN_CFLAGS)
 
-dnl
-dnl Check for -Bsymbolic-functions linker flag used to avoid
-dnl intra-library PLT jumps, if available.
-dnl
+#
+# Check for -Bsymbolic-functions linker flag used to avoid
+# intra-library PLT jumps, if available.
+#
 AC_ARG_ENABLE(Bsymbolic,
               [AS_HELP_STRING([--disable-Bsymbolic],
                               [avoid linking with -Bsymbolic])],,
@@ -1969,9 +1969,9 @@ if test "x${enable_Bsymbolic}" = "xyes" ; then
 fi
 AC_SUBST(GTK_LINK_FLAGS)
 
-dnl
-dnl Check whether MSVC toolset is explicitly set
-dnl
+#
+# Check whether MSVC toolset is explicitly set
+#
 AM_CONDITIONAL(MSVC_BASE_NO_TOOLSET_SET, [test x$MSVC_BASE_TOOLSET = x])
 AM_CONDITIONAL(MSVC_NO_TOOLSET_SET, [test x$MSVC_TOOLSET = x])
 
