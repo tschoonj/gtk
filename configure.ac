@@ -1922,26 +1922,26 @@ AC_ARG_ENABLE(compile-warnings,
               [],
               [enable_compile_warnings=yes])
 AS_IF([test "x$enable_compile_warnings" = xyes], [
-  AX_APPEND_COMPILE_FLAGS([ \
-    -Wall \
-    -Wundef \
-    -Wnested-externs \
-    -Wpointer-arith \
-    -Wstrict-prototypes \
-    -Wcast-align \
-    -Wuninitialized \
-    -Wmissing-include-dirs \
-    -Wshadow \
-    -Wformat=2 \
-    -Wformat-nonliteral \
-    -Wformat-security \
-    -Wimplicit-function-declaration \
-    -Werror=redundant-decls \
-    -Werror=write-strings \
-    -Werror=missing-declarations \
-    -Werror=missing-prototypes \
-    -Werror=empty-body \
-    -Werror=init-self \
+  AX_APPEND_COMPILE_FLAGS([
+    -Wall
+    -Wundef
+    -Wnested-externs
+    -Wpointer-arith
+    -Wstrict-prototypes
+    -Wcast-align
+    -Wuninitialized
+    -Wmissing-include-dirs
+    -Wshadow
+    -Wformat=2
+    -Wformat-nonliteral
+    -Wformat-security
+    -Wimplicit-function-declaration
+    -Werror=redundant-decls
+    -Werror=write-strings
+    -Werror=missing-declarations
+    -Werror=missing-prototypes
+    -Werror=empty-body
+    -Werror=init-self
   ], [GTK_WARN_CFLAGS])
 ])
 AC_SUBST(GTK_WARN_CFLAGS)
